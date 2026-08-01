@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import type { StepMetadata } from "./lib/types";
 
 const KEEP = "rgb(212,175,55)";
@@ -72,6 +73,7 @@ export type OverlayMode = "none" | "heat" | "prune";
 /**
  * Transparent patch overlay sized to the parent panel.
  * Does not redraw the video — only darkens pruned cells / paints heat / outlines kept.
+ * When interactive (paused), hover shows pairwise cosine similarity vs previous step.
  */
 export function OverlayCanvas({
   metadata,
@@ -80,6 +82,9 @@ export function OverlayCanvas({
   heatPalette = "magma",
   panelW,
   panelH,
+  interactive = false,
+  stepIdx = 0,
+  dissimilarity,
 }: {
   metadata: StepMetadata;
   mode?: OverlayMode;
@@ -87,8 +92,18 @@ export function OverlayCanvas({
   heatPalette?: HeatPalette;
   panelW: number;
   panelH: number;
+  /** Enable hit-testing + tooltip (use while paused). */
+  interactive?: boolean;
+  stepIdx?: number;
+  /** Per-token dissimilarity for the current temporal step. */
+  dissimilarity?: number[];
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [hover, setHover] = useState<{
+    idx: number;
+    xPct: number;
+    yPct: number;
+  } | null>(null);
 
   const paint = useCallback(() => {
     const canvas = canvasRef.current;
@@ -132,8 +147,6 @@ export function OverlayCanvas({
     }
 
     if (mode === "prune") {
-      // Only darken pruned cells — do NOT outline every kept cell.
-      // (Step 0 keeps everything; outlining all tokens looks like a static grid.)
       ctx.fillStyle = PRUNED_FILL;
       for (const idx of metadata.pruned) {
         const [x, y, w, h] = box(idx);
@@ -145,7 +158,6 @@ export function OverlayCanvas({
         const [x, y, w, h] = box(idx);
         ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
       }
-      // Outline kept cells only when sparse enough to read as motion hotspots
       const keepRatio =
         metadata.num_tokens > 0
           ? metadata.kept.length / metadata.num_tokens
@@ -166,12 +178,69 @@ export function OverlayCanvas({
     paint();
   }, [paint]);
 
+  useEffect(() => {
+    if (!interactive) setHover(null);
+  }, [interactive]);
+
+  const [gridW, gridH] = metadata.grid;
+
+  const onMove = (e: ReactMouseEvent<HTMLCanvasElement>) => {
+    if (!interactive) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    const col = Math.min(gridW - 1, Math.max(0, Math.floor(x * gridW)));
+    const row = Math.min(gridH - 1, Math.max(0, Math.floor(y * gridH)));
+    setHover({ idx: row * gridW + col, xPct: x * 100, yPct: y * 100 });
+  };
+
+  const isKept = hover ? metadata.kept.includes(hover.idx) : false;
+  const dissimVal =
+    hover &&
+    dissimilarity &&
+    dissimilarity.length === metadata.num_tokens &&
+    stepIdx > 0
+      ? dissimilarity[hover.idx]
+      : undefined;
+  const cosVal =
+    dissimVal != null && Number.isFinite(dissimVal)
+      ? 1 - dissimVal
+      : undefined;
+
   return (
     <div className="absolute inset-0 pointer-events-none">
       <canvas
         ref={canvasRef}
-        className="h-full w-full block pointer-events-none"
+        className={`h-full w-full block ${
+          interactive ? "pointer-events-auto cursor-crosshair" : "pointer-events-none"
+        }`}
+        onMouseMove={onMove}
+        onMouseLeave={() => setHover(null)}
       />
+      {interactive && hover && mode !== "none" && (
+        <div
+          className="pointer-events-none absolute z-10 rounded bg-stone-900/90 px-2 py-1 text-[11px] text-white shadow"
+          style={{
+            left: `min(${hover.xPct}%, calc(100% - 160px))`,
+            top: `min(${hover.yPct}%, calc(100% - 56px))`,
+            transform: "translate(8px, 8px)",
+          }}
+        >
+          <div className="font-mono">
+            #{hover.idx} · {isKept ? "kept" : "pruned"}
+          </div>
+          {stepIdx === 0 ? (
+            <div className="text-stone-300">cos sim n/a (first step)</div>
+          ) : cosVal != null ? (
+            <div className="text-stone-300">
+              cos sim {cosVal.toFixed(3)}
+              {dissimVal != null ? ` · dissim ${dissimVal.toFixed(3)}` : ""}
+            </div>
+          ) : (
+            <div className="text-stone-300">cos sim n/a</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

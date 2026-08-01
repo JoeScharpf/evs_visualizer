@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""Pack invariant checks for EVS demo (no GPU)."""
+"""Pack invariant checks for EVS demo (no GPU required for pack tests).
+
+Ranking tests prove keep/prune follows EVS global top-k on pairwise
+inter-frame dissimilarity (high cosine similarity → pruned).
+"""
 from __future__ import annotations
 
 import importlib.util
 import json
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PACK_ROOT = ROOT / "public" / "pack"
 MANIFEST = PACK_ROOT / "examples.json"
 LEGACY_PACK = PACK_ROOT / "pack.json"
+# Prefer vendored copy (standalone repo); fall back to nested Hiprune vLLM fork.
 EVS_PATH = ROOT / "vendor" / "evs.py"
+if not EVS_PATH.is_file():
+    EVS_PATH = ROOT.parents[0] / "vllm" / "vllm" / "multimodal" / "evs.py"
 
 
 def load_evs():
@@ -74,6 +80,45 @@ def check_pack(pack_path: Path) -> None:
             assert not all(pack["retention_mask"][1]), "synthetic step1 should prune"
 
 
+def check_topk_from_dissimilarity(pack: dict, pack_path: Path) -> None:
+    """Mask must equal global stable top-k on flattened dissimilarity (EVS rule)."""
+    T = pack["num_frames"]
+    tokens = pack["tokens_per_frame"]
+    kept_total = pack["kept_total"]
+    dis = [v for row in pack["dissimilarity"] for v in row]
+    mask = [bool(v) for row in pack["retention_mask"] for v in row]
+    assert len(dis) == T * tokens
+    assert len(mask) == T * tokens
+
+    # Stable descending argsort (matches torch.argsort(..., descending=True, stable=True))
+    order = sorted(range(len(dis)), key=lambda i: (-dis[i], i))
+    top = set(order[:kept_total])
+    got = {i for i, v in enumerate(mask) if v}
+    assert top == got, f"{pack_path}: retention_mask != global top-k on dissimilarity"
+
+
+def check_step_ordering(pack: dict, pack_path: Path) -> None:
+    """For t>0, kept dissim >= pruned dissim within each step (global top-k consequence)."""
+    T = pack["num_frames"]
+    tokens = pack["tokens_per_frame"]
+    for t in range(1, T):
+        dis = pack["dissimilarity"][t]
+        mask = pack["retention_mask"][t]
+        kept = [dis[i] for i in range(tokens) if mask[i]]
+        pruned = [dis[i] for i in range(tokens) if not mask[i]]
+        if not kept or not pruned:
+            continue
+        assert min(kept) + 1e-9 >= max(pruned), (
+            f"{pack_path} step {t}: kept_min={min(kept)} < pruned_max={max(pruned)}"
+        )
+        # Equivalent cosine: high similarity → pruned
+        sim_kept = [1.0 - d for d in kept]
+        sim_pruned = [1.0 - d for d in pruned]
+        assert max(sim_kept) <= min(sim_pruned) + 1e-9, (
+            f"{pack_path} step {t}: kept cos sim not <= pruned cos sim"
+        )
+
+
 def test_pack_invariants():
     paths = pack_paths()
     assert paths, "no packs found (examples.json or pack.json)"
@@ -81,11 +126,80 @@ def test_pack_invariants():
         check_pack(p)
 
 
+def test_retention_matches_global_topk_dissimilarity():
+    paths = pack_paths()
+    assert paths
+    for p in paths:
+        pack = json.loads(p.read_text())
+        check_topk_from_dissimilarity(pack, p)
+        check_step_ordering(pack, p)
+
+
 def test_evs_module_loads():
     evs = load_evs()
     assert hasattr(evs, "compute_retention_mask")
     assert hasattr(evs, "compute_retained_tokens_count")
     assert evs.compute_retained_tokens_count(100, 4, 0.75) == max(100, int(400 * 0.25))
+
+
+def test_evs_topk_synthetic():
+    """Tiny fake embeds: highest-dissim cells kept; most similar pruned."""
+    import torch
+
+    evs = load_evs()
+    # T=2, pre-merge H=W=2, merge=1 → 2x2 soft tokens per step
+    # Frame0 embeds; frame1 nearly identical on (0,0)/(0,1), different on (1,0)/(1,1)
+    T, H, W, C = 2, 2, 2, 8
+    merge = 1
+    embeds = torch.zeros(T * H * W, C)
+    # step 0
+    embeds[0] = torch.tensor([1.0, 0, 0, 0, 0, 0, 0, 0])
+    embeds[1] = torch.tensor([0, 1.0, 0, 0, 0, 0, 0, 0])
+    embeds[2] = torch.tensor([0, 0, 1.0, 0, 0, 0, 0, 0])
+    embeds[3] = torch.tensor([0, 0, 0, 1.0, 0, 0, 0, 0])
+    # step 1: (0,0) and (0,1) almost same as step0 → high similarity → prune
+    embeds[4] = embeds[0] * 0.99
+    embeds[5] = embeds[1] * 0.99
+    # (1,0) and (1,1) orthogonal-ish → high dissim → keep
+    embeds[6] = torch.tensor([0, 0, 0, 0, 1.0, 0, 0, 0])
+    embeds[7] = torch.tensor([0, 0, 0, 0, 0, 1.0, 0, 0])
+
+    q = 0.5  # keep max(4, int(8*0.5))=4 → all of step0 (forced) uses budget; wait
+    # retained = max(tokens_per_frame, int(total*(1-q))) = max(4, int(8*0.5)) = max(4,4)=4
+    # Step0 sentinel forces all 4 step0 tokens into top-k, so step1 may all be pruned.
+    # Use lower q so some step1 tokens survive: q=0.25 → keep max(4, int(8*0.75))=6
+    q = 0.25
+    mask = evs.compute_retention_mask(
+        embeds, (T, H, W), spatial_merge_size=merge, q=q
+    )
+    assert mask.shape[0] == T * H * W
+    mask_thw = mask.view(T, H, W)
+    assert bool(mask_thw[0].all()), "step 0 fully kept"
+
+    # Dissimilarity for step1
+    e0 = embeds[:4].view(H, W, C)
+    e1 = embeds[4:].view(H, W, C)
+    sim = torch.nn.functional.cosine_similarity(e1, e0, dim=-1)
+    dis = 1 - sim
+    # The two highest-dissim step1 cells should be preferred over the two low-dissim ones
+    flat_dis = dis.view(-1)
+    # Among step1 indices 4..7 in global mask, kept ones must have higher dis than pruned
+    step1_kept = []
+    step1_pruned = []
+    for i in range(4):
+        if mask[4 + i]:
+            step1_kept.append(float(flat_dis[i]))
+        else:
+            step1_pruned.append(float(flat_dis[i]))
+    assert step1_kept, "expected some step1 keeps with q=0.25"
+    assert step1_pruned, "expected some step1 prunes"
+    assert min(step1_kept) >= max(step1_pruned) - 1e-5
+
+    # Explicitly: high-sim cells (0,0) and (0,1) should be pruned before low-sim
+    assert float(sim[0, 0]) > 0.9 and float(sim[0, 1]) > 0.9
+    assert not bool(mask_thw[1, 0, 0]) or not bool(mask_thw[1, 0, 1])
+    # At least one of the high-change bottom cells kept
+    assert bool(mask_thw[1, 1, 0]) or bool(mask_thw[1, 1, 1])
 
 
 def test_manifest_keys_unique():
@@ -101,4 +215,6 @@ if __name__ == "__main__":
     test_evs_module_loads()
     test_manifest_keys_unique()
     test_pack_invariants()
+    test_retention_matches_global_topk_dissimilarity()
+    test_evs_topk_synthetic()
     print("ok")
