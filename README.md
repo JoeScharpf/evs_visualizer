@@ -28,6 +28,7 @@ Multi-example packs under `public/pack/examples/` (see `examples.json`):
 | `1` | Video-MME hurdles (`4ZK-m01XSQ8`) |
 | `2` | Video-MME talking head (`540LkURTR7g`, fixed background) |
 | `3` | Video-MME laptop wipe (`7iXM5aq53Ts`, fixed overhead desk) |
+| `4` | Video-MME gym band (`21q-lDikdBg`, seated resistance-band exercise) |
 
 **Controls:** press a number to cue that example (start frame, no overlay); press the same number again to play with the EVS prune overlay. `Space` / `Enter` pauses and resumes (keeps overlay + time). While paused, hover a patch to see pairwise cosine similarity vs the previous temporal step. `Esc` freezes back to cue.
 
@@ -73,6 +74,15 @@ python3 _bake_evs.py \
   --model Qwen/Qwen2.5-VL-3B-Instruct \
   --id laptop_evs --videomme-id 7iXM5aq53Ts \
   --label "Video-MME laptop wipe — EVS"
+
+# 4 — gym resistance band (fixed camera)
+python3 _bake_evs.py \
+  --video _src/clip_gym.mp4 \
+  --out-dir examples/4_gym \
+  --q 0.75 --sample-fps 2 --prep-width 640 \
+  --model Qwen/Qwen2.5-VL-3B-Instruct \
+  --id gym_evs --videomme-id 21q-lDikdBg \
+  --label "Video-MME gym band — EVS"
 ```
 
 Requires: `torch`, `transformers`, `qwen-vl-utils`, `ffmpeg`. Debug `frames/*.jpg` are sampled from the source MP4 (not model tensors).
