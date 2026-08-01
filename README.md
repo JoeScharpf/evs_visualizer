@@ -30,6 +30,8 @@ Multi-example packs under `public/pack/examples/` (see `examples.json`):
 | `3` | Video-MME laptop wipe (`7iXM5aq53Ts`, fixed overhead desk) |
 | `4` | Video-MME gym band (`21q-lDikdBg`, seated resistance-band exercise) |
 | `5` | Video-MME makeup (`6NVr0cNiHPM`, fixed pink backdrop, hand/face motion) |
+| `6` | Video-MME egg flip (`1sTQOxXFO44`, colorful kitchen motion) |
+| `7` | Video-MME outdoor workout (`6EIrArTyLVU`, grass/trees, outdoor bars) |
 
 **Controls:** press a number to cue that example (start frame, no overlay); press the same number again to play with the EVS prune overlay. `Space` / `Enter` pauses and resumes (keeps overlay + time). While paused, hover a patch to see pairwise cosine similarity vs the previous temporal step. `Esc` freezes back to cue.
 
@@ -93,6 +95,24 @@ python3 _bake_evs.py \
   --model Qwen/Qwen2.5-VL-3B-Instruct \
   --id makeup_evs --videomme-id 6NVr0cNiHPM \
   --label "Video-MME makeup — EVS"
+
+# 6 — egg flip (colorful kitchen)
+python3 _bake_evs.py \
+  --video _src/clip_egg.mp4 \
+  --out-dir examples/6_egg \
+  --q 0.75 --sample-fps 2 --prep-width 640 \
+  --model Qwen/Qwen2.5-VL-3B-Instruct \
+  --id egg_evs --videomme-id 1sTQOxXFO44 \
+  --label "Video-MME egg flip — EVS"
+
+# 7 — outdoor workout (nature / grass)
+python3 _bake_evs.py \
+  --video _src/clip_outdoor.mp4 \
+  --out-dir examples/7_outdoor \
+  --q 0.75 --sample-fps 2 --prep-width 640 \
+  --model Qwen/Qwen2.5-VL-3B-Instruct \
+  --id outdoor_evs --videomme-id 6EIrArTyLVU \
+  --label "Video-MME outdoor workout — EVS"
 ```
 
 Requires: `torch`, `transformers`, `qwen-vl-utils`, `ffmpeg`. Debug `frames/*.jpg` are sampled from the source MP4 (not model tensors).
