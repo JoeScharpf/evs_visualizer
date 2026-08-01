@@ -1,9 +1,9 @@
 /**
  * EVS multi-example demo (white page, video + prune overlay).
  *
- * Keys 1..N: first press cues that example (paused, no overlay);
+ * Keys 1..N: first press cues that example (paused at start, no overlay);
  * press the same number again to play with prune overlay.
- * Esc freezes back to cue. Different number switches example.
+ * Space: pause / resume (keeps overlay + current time). Esc freezes back to cue.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OverlayCanvas } from "./OverlayCanvas";
@@ -26,26 +26,29 @@ type ExampleEntry = {
 
 type Manifest = { examples: ExampleEntry[] };
 
+/** cue = start frame, no overlay; playing = running; paused = freeze mid-clip with overlay */
+type Phase = "cue" | "playing" | "paused";
+
 export default function DemoApp() {
   const [examples, setExamples] = useState<ExampleEntry[]>([]);
   const [selectedKey, setSelectedKey] = useState<number | null>(null);
   const [pack, setPack] = useState<EvsPack | null>(null);
   const [packBase, setPackBase] = useState<string>("");
-  const [playing, setPlaying] = useState(false);
+  const [phase, setPhase] = useState<Phase>("cue");
   const [stepIdx, setStepIdx] = useState(0);
   const [viewportW, setViewportW] = useState(
     typeof window !== "undefined" ? window.innerWidth : 1200
   );
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const selectedKeyRef = useRef<number | null>(null);
-  const playingRef = useRef(false);
+  const phaseRef = useRef<Phase>("cue");
 
   useEffect(() => {
     selectedKeyRef.current = selectedKey;
   }, [selectedKey]);
   useEffect(() => {
-    playingRef.current = playing;
-  }, [playing]);
+    phaseRef.current = phase;
+  }, [phase]);
 
   useEffect(() => {
     const onResize = () => setViewportW(window.innerWidth);
@@ -59,7 +62,7 @@ export default function DemoApp() {
       v.pause();
       v.currentTime = 0;
     }
-    setPlaying(false);
+    setPhase("cue");
     setStepIdx(0);
   }, []);
 
@@ -68,8 +71,22 @@ export default function DemoApp() {
     if (!v) return;
     v.currentTime = 0;
     setStepIdx(0);
-    setPlaying(true);
-    void v.play().catch(() => setPlaying(false));
+    setPhase("playing");
+    void v.play().catch(() => setPhase("cue"));
+  }, []);
+
+  const pausePlayback = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.pause();
+    setPhase("paused");
+  }, []);
+
+  const resumePlayback = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    setPhase("playing");
+    void v.play().catch(() => setPhase("paused"));
   }, []);
 
   const loadExample = useCallback(
@@ -84,15 +101,15 @@ export default function DemoApp() {
       setPackBase(base);
       setSelectedKey(entry.key);
       setStepIdx(0);
-      setPlaying(false);
+      setPhase("cue");
       requestAnimationFrame(() => {
         const v = videoRef.current;
         if (v) {
           v.pause();
           v.currentTime = 0;
           if (autoPlay) {
-            setPlaying(true);
-            void v.play().catch(() => setPlaying(false));
+            setPhase("playing");
+            void v.play().catch(() => setPhase("cue"));
           }
         }
       });
@@ -131,7 +148,8 @@ export default function DemoApp() {
 
   const syncFromVideo = useCallback(() => {
     const v = videoRef.current;
-    if (!v || !pack || !playingRef.current) return;
+    if (!v || !pack) return;
+    if (phaseRef.current === "cue") return;
     const dur =
       duration > 0 ? duration : Number.isFinite(v.duration) ? v.duration : 1;
     setStepIdx(timeToStep(v.currentTime, dur, pack.num_frames));
@@ -143,17 +161,28 @@ export default function DemoApp() {
     v.muted = true;
     v.loop = true;
     v.playsInline = true;
-    if (!playing) {
+    if (phase === "playing") {
+      if (v.paused) void v.play().catch(() => setPhase("paused"));
+    } else {
       v.pause();
-      if (v.currentTime !== 0) v.currentTime = 0;
+      if (phase === "cue" && v.currentTime !== 0) v.currentTime = 0;
     }
-  }, [vUrl, playing]);
+  }, [vUrl, phase]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        const cur = phaseRef.current;
+        if (cur === "playing") pausePlayback();
+        else if (cur === "paused") resumePlayback();
+        else startPlayback();
+        return;
+      }
 
       if (e.key === "Escape") {
         e.preventDefault();
@@ -167,19 +196,26 @@ export default function DemoApp() {
       if (!entry) return;
       e.preventDefault();
 
-      const cur = selectedKeyRef.current;
-      const isPlaying = playingRef.current;
-      if (cur !== digit) {
+      const curKey = selectedKeyRef.current;
+      const curPhase = phaseRef.current;
+      if (curKey !== digit) {
         void loadExample(entry, false);
         return;
       }
-      // Same example: cue → play, or play → cue
-      if (isPlaying) armCue();
-      else startPlayback();
+      // Same example: cue → play; playing/paused → cue
+      if (curPhase === "cue") startPlayback();
+      else armCue();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [examples, loadExample, armCue, startPlayback]);
+  }, [
+    examples,
+    loadExample,
+    armCue,
+    startPlayback,
+    pausePlayback,
+    resumePlayback,
+  ]);
 
   const metadata = useMemo(
     () => (pack ? maskToMetadata(pack, stepIdx) : null),
@@ -196,7 +232,7 @@ export default function DemoApp() {
     return { panelW, panelH, scale };
   }, [pack, viewportW]);
 
-  const showOverlay = playing && metadata != null;
+  const showOverlay = phase !== "cue" && metadata != null;
 
   return (
     <div className="h-screen w-screen overflow-hidden flex items-center justify-center bg-white">
@@ -234,15 +270,14 @@ export default function DemoApp() {
                 onLoadedMetadata={() => {
                   const v = videoRef.current;
                   if (!v) return;
-                  if (playingRef.current) void v.play().catch(() => {});
-                  else {
+                  if (phaseRef.current === "playing") {
+                    void v.play().catch(() => {});
+                  } else if (phaseRef.current === "cue") {
                     v.pause();
                     v.currentTime = 0;
+                  } else {
+                    v.pause();
                   }
-                }}
-                onPlay={() => setPlaying(true)}
-                onPause={() => {
-                  /* keep playing flag driven by keys unless ended mid-cue */
                 }}
               />
               {showOverlay && (
