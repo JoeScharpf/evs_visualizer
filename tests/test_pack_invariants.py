@@ -3,12 +3,19 @@
 
 Ranking tests prove keep/prune follows EVS global top-k on pairwise
 inter-frame dissimilarity (high cosine similarity → pruned).
+
+Precomputed examples from ``examples.json`` are tested individually
+(parametrized) so each baked video pack reports its own pass/fail.
 """
 from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PACK_ROOT = ROOT / "public" / "pack"
@@ -28,16 +35,69 @@ def load_evs():
     return mod
 
 
-def pack_paths() -> list[Path]:
-    paths: list[Path] = []
+def example_cases() -> list[tuple[str, Path]]:
+    """(example_id, pack.json path) for each precomputed demo video."""
+    cases: list[tuple[str, Path]] = []
     if MANIFEST.is_file():
         data = json.loads(MANIFEST.read_text())
         for ex in data.get("examples", []):
-            rel = ex["pack"]
-            paths.append(PACK_ROOT / rel)
+            cases.append((ex["id"], PACK_ROOT / ex["pack"]))
     elif LEGACY_PACK.is_file():
-        paths.append(LEGACY_PACK)
-    return paths
+        cases.append(("legacy", LEGACY_PACK))
+    return cases
+
+
+def pack_paths() -> list[Path]:
+    return [p for _, p in example_cases()]
+
+
+def ffprobe_video(path: Path) -> dict:
+    """Return width, height, duration from ffprobe (requires ffmpeg)."""
+    assert shutil.which("ffprobe"), "ffprobe not found (install ffmpeg)"
+    out = subprocess.check_output(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
+            str(path),
+        ],
+        text=True,
+    )
+    data = json.loads(out)
+    stream = data["streams"][0]
+    return {
+        "width": int(stream["width"]),
+        "height": int(stream["height"]),
+        "duration": float(data["format"]["duration"]),
+    }
+
+
+def check_precomputed_video(pack: dict, pack_path: Path) -> None:
+    """Assert baked MP4 exists and matches pack video_* metadata."""
+    assert pack.get("video"), f"{pack_path}: missing video field"
+    video_path = pack_path.parent / pack["video"]
+    assert video_path.is_file(), f"missing precomputed video {video_path}"
+    assert video_path.stat().st_size > 10_000, f"{video_path} looks empty"
+
+    meta = ffprobe_video(video_path)
+    assert meta["width"] == int(pack["video_width"]), (
+        f"{pack_path}: width {meta['width']} != pack {pack['video_width']}"
+    )
+    assert meta["height"] == int(pack["video_height"]), (
+        f"{pack_path}: height {meta['height']} != pack {pack['video_height']}"
+    )
+    pack_dur = float(pack["video_duration"])
+    assert abs(meta["duration"] - pack_dur) < 0.15, (
+        f"{pack_path}: duration {meta['duration']} != pack {pack_dur}"
+    )
 
 
 def check_pack(pack_path: Path) -> None:
@@ -119,20 +179,32 @@ def check_step_ordering(pack: dict, pack_path: Path) -> None:
         )
 
 
-def test_pack_invariants():
-    paths = pack_paths()
-    assert paths, "no packs found (examples.json or pack.json)"
-    for p in paths:
-        check_pack(p)
+_EXAMPLE_CASES = example_cases()
+_EXAMPLE_IDS = [c[0] for c in _EXAMPLE_CASES]
 
 
-def test_retention_matches_global_topk_dissimilarity():
-    paths = pack_paths()
-    assert paths
-    for p in paths:
-        pack = json.loads(p.read_text())
-        check_topk_from_dissimilarity(pack, p)
-        check_step_ordering(pack, p)
+@pytest.mark.parametrize("example_id,pack_path", _EXAMPLE_CASES, ids=_EXAMPLE_IDS)
+def test_precomputed_pack_invariants(example_id: str, pack_path: Path):
+    """Each baked example: shapes, budget, step-0 keep, assets on disk."""
+    assert example_id
+    check_pack(pack_path)
+
+
+@pytest.mark.parametrize("example_id,pack_path", _EXAMPLE_CASES, ids=_EXAMPLE_IDS)
+def test_precomputed_retention_global_topk(example_id: str, pack_path: Path):
+    """Each baked pack's mask == global top-k on stored dissimilarity."""
+    assert example_id
+    pack = json.loads(pack_path.read_text())
+    check_topk_from_dissimilarity(pack, pack_path)
+    check_step_ordering(pack, pack_path)
+
+
+@pytest.mark.parametrize("example_id,pack_path", _EXAMPLE_CASES, ids=_EXAMPLE_IDS)
+def test_precomputed_video_matches_pack(example_id: str, pack_path: Path):
+    """Each baked video.mp4 exists and matches pack width/height/duration."""
+    assert example_id
+    pack = json.loads(pack_path.read_text())
+    check_precomputed_video(pack, pack_path)
 
 
 def test_evs_module_loads():
@@ -209,12 +281,17 @@ def test_manifest_keys_unique():
     keys = [ex["key"] for ex in data["examples"]]
     assert keys == sorted(keys)
     assert len(keys) == len(set(keys))
+    assert _EXAMPLE_CASES, "expected precomputed examples in examples.json"
 
 
 if __name__ == "__main__":
     test_evs_module_loads()
     test_manifest_keys_unique()
-    test_pack_invariants()
-    test_retention_matches_global_topk_dissimilarity()
+    for _id, p in example_cases():
+        check_pack(p)
+        pack = json.loads(p.read_text())
+        check_topk_from_dissimilarity(pack, p)
+        check_step_ordering(pack, p)
+        check_precomputed_video(pack, p)
     test_evs_topk_synthetic()
     print("ok")
