@@ -17,6 +17,12 @@
       "id": "laptop",
       "pack": "examples/3_laptop/pack.json",
       "title": "Laptop wipe"
+    },
+    {
+      "key": 4,
+      "id": "gym",
+      "pack": "examples/4_gym/pack.json",
+      "title": "Gym band"
     }
   ]
 }
