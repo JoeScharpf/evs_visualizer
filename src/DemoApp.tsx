@@ -287,6 +287,9 @@ export default function DemoApp() {
                     mode="prune"
                     panelW={layout.panelW}
                     panelH={layout.panelH}
+                    interactive={phase === "paused"}
+                    stepIdx={stepIdx}
+                    dissimilarity={pack.dissimilarity[stepIdx]}
                   />
                 </div>
               )}

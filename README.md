@@ -15,7 +15,6 @@ This visualizes **vLLM EVS**, not HiPrune.
 ## Run
 
 ```bash
-cd evs_demo
 npm install
 npm run dev
 ```
@@ -30,7 +29,7 @@ Multi-example packs under `public/pack/examples/` (see `examples.json`):
 | `2` | Video-MME talking head (`540LkURTR7g`, fixed background) |
 | `3` | Video-MME laptop wipe (`7iXM5aq53Ts`, fixed overhead desk) |
 
-**Controls:** press a number to cue that example (start frame, no overlay); press the same number again to play with the EVS prune overlay. `Space` / `Enter` pauses and resumes (keeps overlay + time). `Esc` freezes back to cue.
+**Controls:** press a number to cue that example (start frame, no overlay); press the same number again to play with the EVS prune overlay. `Space` / `Enter` pauses and resumes (keeps overlay + time). While paused, hover a patch to see pairwise cosine similarity vs the previous temporal step. `Esc` freezes back to cue.
 
 ## Temporal steps vs source video
 
