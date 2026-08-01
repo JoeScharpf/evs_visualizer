@@ -11,6 +11,12 @@
       "id": "talking_head",
       "pack": "examples/2_talking_head/pack.json",
       "title": "Talking head"
+    },
+    {
+      "key": 3,
+      "id": "laptop",
+      "pack": "examples/3_laptop/pack.json",
+      "title": "Laptop wipe"
     }
   ]
 }

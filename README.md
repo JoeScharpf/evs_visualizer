@@ -15,6 +15,7 @@ This visualizes **vLLM EVS**, not HiPrune.
 ## Run
 
 ```bash
+cd evs_demo
 npm install
 npm run dev
 ```
@@ -27,6 +28,7 @@ Multi-example packs under `public/pack/examples/` (see `examples.json`):
 |-----|---------|
 | `1` | Video-MME hurdles (`4ZK-m01XSQ8`) |
 | `2` | Video-MME talking head (`540LkURTR7g`, fixed background) |
+| `3` | Video-MME laptop wipe (`7iXM5aq53Ts`, fixed overhead desk) |
 
 **Controls:** press a number to cue that example (start frame, no overlay); press the same number again to play with the EVS prune overlay. `Space` / `Enter` pauses and resumes (keeps overlay + time). `Esc` freezes back to cue.
 
@@ -63,11 +65,20 @@ python3 _bake_evs.py \
   --model Qwen/Qwen2.5-VL-3B-Instruct \
   --id talking_head_evs --videomme-id 540LkURTR7g \
   --label "Video-MME talking head — EVS"
+
+# 3 — laptop wipe (fixed overhead)
+python3 _bake_evs.py \
+  --video _src/clip_laptop.mp4 \
+  --out-dir examples/3_laptop \
+  --q 0.75 --sample-fps 2 --prep-width 640 \
+  --model Qwen/Qwen2.5-VL-3B-Instruct \
+  --id laptop_evs --videomme-id 7iXM5aq53Ts \
+  --label "Video-MME laptop wipe — EVS"
 ```
 
 Requires: `torch`, `transformers`, `qwen-vl-utils`, `ffmpeg`. Debug `frames/*.jpg` are sampled from the source MP4 (not model tensors).
 
-The bake script loads [`vendor/evs.py`](vendor/evs.py) (vendored from vLLM multimodal EVS) via **importlib** so it uses the exact `compute_retention_mask` without importing the full vLLM package.
+The bake script loads [`vllm/vllm/multimodal/evs.py`](../vllm/vllm/multimodal/evs.py) via **importlib** (file path) so it uses the exact `compute_retention_mask` without importing the full vLLM package.
 
 ## Synthetic pack
 
