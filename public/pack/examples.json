@@ -23,6 +23,12 @@
       "id": "gym",
       "pack": "examples/4_gym/pack.json",
       "title": "Gym band"
+    },
+    {
+      "key": 5,
+      "id": "makeup",
+      "pack": "examples/5_makeup/pack.json",
+      "title": "Makeup"
     }
   ]
 }
