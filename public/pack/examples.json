@@ -29,6 +29,18 @@
       "id": "makeup",
       "pack": "examples/5_makeup/pack.json",
       "title": "Makeup"
+    },
+    {
+      "key": 6,
+      "id": "egg",
+      "pack": "examples/6_egg/pack.json",
+      "title": "Egg flip"
+    },
+    {
+      "key": 7,
+      "id": "outdoor",
+      "pack": "examples/7_outdoor/pack.json",
+      "title": "Outdoor workout"
     }
   ]
 }
