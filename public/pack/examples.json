@@ -1,0 +1,16 @@
+{
+  "examples": [
+    {
+      "key": 1,
+      "id": "hurdles",
+      "pack": "examples/1_hurdles/pack.json",
+      "title": "Hurdles"
+    },
+    {
+      "key": 2,
+      "id": "talking_head",
+      "pack": "examples/2_talking_head/pack.json",
+      "title": "Talking head"
+    }
+  ]
+}

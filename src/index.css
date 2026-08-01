@@ -1,0 +1,423 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-synthesis: none;
+  }
+  body {
+    @apply bg-bg-subtle text-fg font-sans;
+    font-feature-settings: "cv11", "ss01";
+  }
+  * {
+    box-sizing: border-box;
+  }
+}
+
+@layer base {
+  :root {
+    --fs-h1: clamp(2rem, 6vw + 0.5rem, 3rem);
+    --lh-display: calc(56 / 48);
+    --tr-display: calc(-2 / 48 * 1em);
+    --r-1: 2px;
+  }
+}
+
+@layer components {
+  .h-display {
+    font-size: var(--fs-h1);
+    line-height: var(--lh-display);
+    letter-spacing: var(--tr-display);
+    font-weight: 500;
+    color: theme("colors.fg.DEFAULT");
+  }
+
+  .container-1312 {
+    width: 100%;
+    max-width: 1752px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  @media (min-width: 768px) {
+    .container-1312 {
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .container-1312 {
+      padding-left: 24px;
+      padding-right: 24px;
+    }
+  }
+}
+
+:focus-visible {
+  outline: 1px dotted #ea580c;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Sliding-fill button hover, lifted from the landing page. */
+.btn-slide {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-1) !important;
+  isolation: isolate;
+}
+.btn-slide-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 460ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+  pointer-events: none;
+  z-index: 0;
+}
+.btn-slide:hover .btn-slide-fill,
+.btn-slide:focus-visible .btn-slide-fill {
+  transform: scaleX(1);
+}
+.btn-slide:disabled .btn-slide-fill {
+  transform: scaleX(0);
+}
+.btn-slide-content {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Uppercase micro-labels: sans kicker and mono telemetry label. */
+.demo-kicker {
+  font-family: theme("fontFamily.sans");
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.demo-label {
+  font-family: theme("fontFamily.mono");
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+@keyframes demo-live-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.live-dot {
+  animation: demo-live-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes demo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  animation: demo-spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot,
+  .spin {
+    animation: none;
+  }
+}
+
+/* Site chrome (header/footer) — kept in sync with landing-page/src/index.css.
+   Mobile menu is a CSS-only <details> disclosure; below md the inline links
+   + YC badge hide and the hamburger shows. */
+.site-nav-menu {
+  display: none;
+  position: relative;
+}
+.site-nav-toggle {
+  list-style: none;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  margin-right: -8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-1);
+  color: #0c0a09;
+}
+.site-nav-toggle::-webkit-details-marker {
+  display: none;
+}
+.site-nav-toggle .site-nav-bars,
+.site-nav-toggle .site-nav-x {
+  display: inline-flex;
+}
+.site-nav-toggle .site-nav-x {
+  display: none;
+}
+.site-nav-menu[open] .site-nav-toggle .site-nav-bars {
+  display: none;
+}
+.site-nav-menu[open] .site-nav-toggle .site-nav-x {
+  display: inline-flex;
+}
+.site-nav-drawer {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 16px 16px;
+  background: #fafaf9;
+  border-bottom: 1px solid #e7e5e4;
+}
+.site-nav-drawer a {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 8px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #0c0a09;
+  border-radius: var(--r-1);
+}
+.site-nav-drawer a:hover {
+  background: #f3efed;
+}
+
+.site-footer-row {
+  height: 32px;
+  font-size: 12px;
+}
+
+@media (max-width: 767px) {
+  .site-nav-desktop,
+  .site-yc {
+    display: none;
+  }
+  .site-nav-menu {
+    display: inline-flex;
+  }
+  .site-footer-row {
+    height: auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 6px;
+    column-gap: 18px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+}
+
+.yc-square .yc-square-bg {
+  fill: #0c0a09;
+  transition: fill 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.yc-square:hover .yc-square-bg,
+.yc-square:focus-visible .yc-square-bg {
+  fill: #f26522;
+}
+
+/* Range slider in the site's stone/orange language. */
+input[type="range"].hp-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: #d6d3d1;
+  border-radius: 1px;
+  outline-offset: 6px;
+}
+input[type="range"].hp-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-1);
+  background: #0c0a09;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+input[type="range"].hp-range::-webkit-slider-thumb:hover {
+  background: #ea580c;
+}
+input[type="range"].hp-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: var(--r-1);
+  background: #0c0a09;
+  cursor: pointer;
+}
+input[type="range"].hp-range::-moz-range-thumb:hover {
+  background: #ea580c;
+}
+
+/* Markdown rendering for model answers. */
+.answer-md p {
+  margin: 0;
+}
+.answer-md p + p,
+.answer-md ul,
+.answer-md ol {
+  margin-top: 0.5rem;
+}
+.answer-md ul,
+.answer-md ol {
+  padding-left: 1.25rem;
+}
+.answer-md ul {
+  list-style: disc;
+}
+.answer-md ol {
+  list-style: decimal;
+}
+.answer-md li + li {
+  margin-top: 0.125rem;
+}
+.answer-md strong {
+  font-weight: 600;
+}
+
+/*
+ * v2 motion: transform slide center→left; right panel fades in after.
+ * Transitions are NOT disabled under prefers-reduced-motion (recording demo).
+ */
+.loop-move {
+  transition: transform 800ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.loop-move--snap {
+  transition: none !important;
+}
+.loop-fade {
+  opacity: 0;
+  transform: translateX(28px);
+  transition:
+    opacity 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+  pointer-events: none;
+}
+.loop-fade--in {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+.loop-fade--snap {
+  transition: none !important;
+}
+
+/*
+ * Preview → Original | pruned (legacy compare-stage from v1 copy).
+ */
+.compare-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+  justify-items: center;
+  container-type: inline-size;
+}
+@media (min-width: 1024px) {
+  .compare-stage--has-result {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    justify-items: stretch;
+  }
+}
+.compare-stage__original {
+  max-width: 100%;
+  transition: transform 360ms cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+@media (min-width: 1024px) {
+  .compare-stage--has-result:not(.compare-stage--entered) .compare-stage__original {
+    transform: translateX(calc(10cqi + 0.5rem));
+  }
+  .compare-stage--has-result.compare-stage--entered .compare-stage__original {
+    transform: none;
+  }
+  .compare-stage--has-result .compare-stage__original {
+    justify-self: stretch;
+    margin-inline: 0;
+    width: 100%;
+  }
+}
+.compare-stage__pruned {
+  opacity: 0;
+  transition: opacity 280ms ease-out 60ms;
+  width: 100%;
+}
+.compare-stage__pruned--in {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .compare-stage__original,
+  .compare-stage__pruned {
+    transition: none;
+    transform: none;
+  }
+  .compare-stage__pruned {
+    opacity: 1;
+  }
+}
+
+/* /demo auto-timed story fades */
+.demo-scene {
+  opacity: 0;
+  transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity;
+}
+.demo-scene--visible {
+  opacity: 1;
+}
+
+.demo-under-caption {
+  opacity: 0;
+  transition: opacity 450ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity;
+  min-height: 2.5rem;
+}
+.demo-under-caption--in {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-scene,
+  .demo-under-caption {
+    transition: none;
+  }
+}
+
+.answer-md code {
+  font-size: 0.85em;
+  background: #f5f5f4;
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+}
+.answer-md h1,
+.answer-md h2,
+.answer-md h3,
+.answer-md h4 {
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
